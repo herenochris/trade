@@ -10,3 +10,14 @@ Ein Trading-Tagebuch in Kalenderform – eine einzelne HTML-Datei ohne Build-Sch
 
 `index.html` im Browser öffnen. Die Daten werden im `localStorage` des Browsers gespeichert.
 Als claude.ai-Artifact veröffentlicht, speichert die App zusätzlich privat pro Nutzer in der Artifact-Datenbank und synchronisiert zwischen Geräten.
+
+## Als App aufs Handy
+
+Die App ist eine **Progressive Web App (PWA)**: installierbar, offline nutzbar, mit eigenem Icon und ohne Browserleiste.
+
+1. **Online stellen (einmalig):** Branch nach `main` mergen, dann im Repo unter *Settings → Pages → Build and deployment → Source* „**GitHub Actions**“ wählen. Der Workflow `.github/workflows/pages.yml` veröffentlicht die App unter `https://<benutzer>.github.io/trade/`.
+2. **Installieren:**
+   - **iPhone (Safari):** Seite öffnen → Teilen-Symbol → „Zum Home-Bildschirm“.
+   - **Android (Chrome):** Seite öffnen → Menü ⋮ → „App installieren“ bzw. „Zum Startbildschirm hinzufügen“.
+
+Die Daten liegen lokal auf dem Gerät. Unter *Checkliste → Daten sichern* kannst du ein Backup (JSON) exportieren und wieder importieren, z. B. für einen Handywechsel.

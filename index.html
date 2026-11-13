@@ -5,6 +5,14 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Trading Journal</title>
 <meta name="claude:viewport-fit-sides" content="cover">
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#2f5bd3">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Journal">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<link rel="icon" type="image/png" href="icons/icon-192.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&family=Space+Grotesk:wght@500;600;700&display=swap">
@@ -213,6 +221,26 @@ label.f textarea { min-height: 80px; resize: vertical; }
   .stats { grid-template-columns: 1fr 1fr; }
   .stats .stat:last-child { grid-column: 1 / -1; }
 }
+/* Handy: schwebender Button statt Kopf-Button */
+.fab { display: none; }
+.backup { display: grid; gap: 8px; padding-top: 14px; border-top: 1px solid var(--line); }
+.backup h4 { margin: 0; font-family: var(--f-display); font-size: 15px; }
+.backup .row { display: flex; gap: 8px; flex-wrap: wrap; }
+@media (max-width: 720px) {
+  #btnNewTrade { display: none; }
+  .fab {
+    display: flex; align-items: center; justify-content: center; position: fixed; z-index: 40;
+    right: calc(18px + env(safe-area-inset-right, 0px)); bottom: calc(18px + env(safe-area-inset-bottom, 0px));
+    width: 60px; height: 60px; border-radius: 50%; border: 0; cursor: pointer;
+    background: var(--accent); color: var(--accent-fg); font-size: 30px; line-height: 1; box-shadow: var(--shadow);
+  }
+  body { padding-block: 14px 96px; }
+  .dialog { border-radius: 14px; }
+  label.f input, label.f select, label.f textarea { font-size: 16px; } /* verhindert Auto-Zoom auf iOS */
+}
+@media (display-mode: standalone) {
+  body { padding-top: calc(14px + env(safe-area-inset-top, 0px)); -webkit-tap-highlight-color: transparent; }
+}
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
 </style>
 </head>
@@ -250,6 +278,7 @@ label.f textarea { min-height: 80px; resize: vertical; }
   </section>
 </div>
 
+<button class="fab" id="fab" type="button" aria-label="Trade eintragen">＋</button>
 <div id="overlay" class="overlay" hidden></div>
 <div id="toast" class="toast" hidden role="status"></div>
 
@@ -461,7 +490,7 @@ label.f textarea { min-height: 80px; resize: vertical; }
       <div class="stat"><span class="lbl">Monats-P&amp;L</span><span class="val ${cls(s.total)}">${money(s.total)}</span><span class="sub">${s.n} ${s.n === 1 ? "Trade" : "Trades"} an ${s.tradingDays} ${s.tradingDays === 1 ? "Tag" : "Tagen"}</span></div>
       <div class="stat"><span class="lbl">Trefferquote</span><span class="val">${pct(s.winrate)}</span><span class="sub">${s.greenDays} von ${s.tradingDays} Tagen im Plus</span></div>
       <div class="stat"><span class="lbl">Profit-Faktor</span><span class="val">${s.pf == null ? "–" : s.pf === Infinity ? "∞" : nf2.format(s.pf)}</span><span class="sub">Ø ${s.avgWin == null ? "–" : money(s.avgWin)} / ${s.avgLoss == null ? "–" : money(s.avgLoss)}</span></div>
-      <div class="stat"><span class="lbl">Bester / schlechtester Tag</span><span class="val" style="font-size:15px"><span class="win">${fmtDay(s.best)}</span></span><span class="sub ${s.worst && s.worst[1] < 0 ? "loss" : ""}">${fmtDay(s.worst)}</span></div>
+      <div class="stat"><span class="lbl">Bester / schlechtester Tag</span><span class="val" style="font-size:15px"><span class="${s.best ? cls(s.best[1]) : ""}">${fmtDay(s.best)}</span></span><span class="sub ${s.worst && s.worst[1] < 0 ? "loss" : ""}">${fmtDay(s.worst)}</span></div>
       <div class="stat"><span class="lbl">Checklisten-Disziplin</span><span class="val">${pct(s.discipline)}</span>
         <span class="sub">Vollständig: <span class="${cls(s.pnlFull)}">${money(s.pnlFull)}</span> (${s.nFull}) · sonst: <span class="${cls(s.pnlNotFull)}">${money(s.pnlNotFull)}</span> (${s.nNotFull})</span></div>`;
   }
@@ -731,6 +760,15 @@ label.f textarea { min-height: 80px; resize: vertical; }
           </form>
           <label class="f" for="f_cur" style="max-width:200px">Währung
             <select id="f_cur">${["€", "$", "£", "CHF", "Pkt."].map(c => `<option ${c === currency ? "selected" : ""}>${c}</option>`).join("")}</select></label>
+          <div class="backup">
+            <h4>Daten sichern</h4>
+            <span class="hint">Deine Trades liegen auf diesem Gerät. Exportiere regelmäßig ein Backup, z. B. vor einem Handywechsel. Beim Import werden Trades zusammengeführt, nichts wird gelöscht.</span>
+            <div class="row">
+              <button class="btn" data-act="export" type="button">Backup exportieren</button>
+              <label class="btn" for="importFile" style="cursor:pointer">Backup importieren<input type="file" id="importFile" accept="application/json,.json" hidden></label>
+            </div>
+            <span class="hint" id="backupMsg"></span>
+          </div>
         </div>
         <div class="dlg-foot">
           <button class="btn ghost" data-act="reset" type="button">Standardliste</button>
@@ -738,7 +776,10 @@ label.f textarea { min-height: 80px; resize: vertical; }
           <button class="btn primary" data-act="save" type="button">Speichern</button></div>
         </div>`);
       const sync = () => dlg.querySelectorAll(".edit-list input[data-i]").forEach(inp => items[+inp.dataset.i].text = inp.value);
-      dlg.addEventListener("change", e => { if (e.target.id === "f_cur") currency = e.target.value; });
+      dlg.addEventListener("change", e => {
+        if (e.target.id === "f_cur") currency = e.target.value;
+        if (e.target.id === "importFile" && e.target.files[0]) importBackup(e.target.files[0]);
+      });
       $("#addItemForm").addEventListener("submit", e => {
         e.preventDefault(); sync();
         const txt = $("#newItem").value.trim(); if (!txt) return;
@@ -752,6 +793,7 @@ label.f textarea { min-height: 80px; resize: vertical; }
           case "up": [items[i - 1], items[i]] = [items[i], items[i - 1]]; draw(); break;
           case "down": [items[i + 1], items[i]] = [items[i], items[i + 1]]; draw(); break;
           case "rm": items.splice(i, 1); draw(); break;
+          case "export": exportBackup(); break;
           case "reset": items = DEFAULT_CHECKLIST.map(x => ({ ...x, id: uid() })); draw(); break;
           case "save":
             state.settings.checklist = items.map(x => ({ ...x, text: x.text.trim() })).filter(x => x.text);
@@ -774,6 +816,51 @@ label.f textarea { min-height: 80px; resize: vertical; }
   Store.loadLocal();
   render();
   Store.connect();
+
+  // ---------- Backup ----------
+  function exportBackup() {
+    const data = JSON.stringify({ app: "trading-journal", version: 1, exportedAt: new Date().toISOString(), trades: state.trades, settings: state.settings }, null, 2);
+    const blob = new Blob([data], { type: "application/json" });
+    const file = `trading-journal-${ymd(new Date())}.json`;
+    // Auf dem Handy bevorzugt über das Teilen-Menü (Dateien, Drive, Mail …)
+    try {
+      const f = new File([blob], file, { type: "application/json" });
+      if (navigator.canShare && navigator.canShare({ files: [f] })) {
+        navigator.share({ files: [f], title: "Trading-Journal-Backup" }).catch(() => {});
+        return;
+      }
+    } catch (e) {}
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob); a.download = file;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+    toast("Backup exportiert");
+  }
+  function importBackup(file) {
+    const msg = $("#backupMsg");
+    file.text().then(txt => {
+      const data = JSON.parse(txt);
+      if (!data || !Array.isArray(data.trades)) throw new Error("format");
+      let added = 0, updated = 0;
+      for (const t of data.trades) {
+        if (!t || !t.id || !t.date) continue;
+        const i = state.trades.findIndex(x => x.id === t.id);
+        if (i >= 0) { state.trades[i] = t; updated++; } else { state.trades.push(t); added++; }
+        if (Store.mode === "db") Store.col.doc("t_" + t.id).set(stripId(t)).catch(() => {});
+      }
+      if (data.settings && Array.isArray(data.settings.checklist)) state.settings = { ...state.settings, ...data.settings };
+      Store.putSettings();
+      msg.textContent = `Import fertig: ${added} neue, ${updated} aktualisierte Trades. Checkliste aus dem Backup übernommen.`;
+      toast("Backup importiert");
+    }).catch(() => { msg.textContent = "Die Datei ist kein gültiges Trading-Journal-Backup (.json)."; });
+  }
+
+  $("#fab").onclick = () => startNewTrade(ymd(new Date()));
+
+  // ---------- Offline-Fähigkeit (nur wenn als Web-App ausgeliefert) ----------
+  if ("serviceWorker" in navigator && (location.protocol === "https:" || location.hostname === "localhost")) {
+    window.addEventListener("load", () => { navigator.serviceWorker.register("sw.js").catch(() => {}); });
+  }
 })();
 </script>
 </body>
