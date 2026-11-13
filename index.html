@@ -1,0 +1,780 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Trading Journal</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&family=Space+Grotesk:wght@500;600;700&display=swap">
+<style>
+/* Layout: Kopfzeile mit Monatsnavigation + Kennzahlen, darunter Kalender (Mo–So + Wochensumme); Tag & Trade-Erfassung als Dialog */
+:root {
+  --bg: #f3f5f8;
+  --surface: #ffffff;
+  --surface-2: #eaeef4;
+  --line: #d6dce6;
+  --fg: #18202c;
+  --muted: #5b6676;
+  --accent: #2f5bd3;
+  --accent-fg: #ffffff;
+  --win: #11845b;
+  --win-bg: #def3e9;
+  --loss: #c8323b;
+  --loss-bg: #fbe3e4;
+  --warn: #a8660b;
+  --warn-bg: #fbefd9;
+  --shadow: 0 10px 40px rgba(20, 30, 50, .18);
+  --f-display: "Space Grotesk", "Segoe UI", system-ui, sans-serif;
+  --f-body: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+  --f-mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+  --r: 10px;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0f141c; --surface: #161d28; --surface-2: #1d2633; --line: #2a3443;
+    --fg: #e5eaf2; --muted: #93a0b3; --accent: #7b9cff; --accent-fg: #0f141c;
+    --win: #3fcf94; --win-bg: #133427; --loss: #ff6b72; --loss-bg: #3a1a1e;
+    --warn: #f0b252; --warn-bg: #3a2c14; --shadow: 0 10px 40px rgba(0,0,0,.5);
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0f141c; --surface: #161d28; --surface-2: #1d2633; --line: #2a3443;
+  --fg: #e5eaf2; --muted: #93a0b3; --accent: #7b9cff; --accent-fg: #0f141c;
+  --win: #3fcf94; --win-bg: #133427; --loss: #ff6b72; --loss-bg: #3a1a1e;
+  --warn: #f0b252; --warn-bg: #3a2c14; --shadow: 0 10px 40px rgba(0,0,0,.5);
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body {
+  background: var(--bg); color: var(--fg);
+  font: 14px/1.5 var(--f-body);
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 20px 40px;
+}
+[hidden] { display: none !important; }
+button, input, select, textarea { font: inherit; color: inherit; }
+.num { font-family: var(--f-mono); font-variant-numeric: tabular-nums; }
+.win { color: var(--win); }
+.loss { color: var(--loss); }
+
+.wrap { max-width: 1180px; margin: 0 auto; display: grid; gap: 18px; }
+
+/* Kopf */
+header.top { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; }
+.brand { display: flex; align-items: baseline; gap: 10px; }
+.brand h1 { font-family: var(--f-display); font-size: 22px; margin: 0; letter-spacing: -.01em; }
+.brand .sync { font-size: 12px; color: var(--muted); }
+.actions { display: flex; gap: 8px; flex-wrap: wrap; }
+
+.btn {
+  border: 1px solid var(--line); background: var(--surface); border-radius: 8px;
+  padding: 8px 14px; cursor: pointer; font-weight: 500; display: inline-flex; align-items: center; gap: 6px;
+}
+.btn:hover { background: var(--surface-2); }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-fg); }
+.btn.primary:hover { filter: brightness(1.08); }
+.btn.ghost { background: transparent; border-color: transparent; }
+.btn.ghost:hover { background: var(--surface-2); }
+.btn.danger { color: var(--loss); }
+.btn.small { padding: 4px 10px; font-size: 13px; }
+.btn:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible, .day:focus-visible, .check:focus-within {
+  outline: 2px solid var(--accent); outline-offset: 2px;
+}
+.icon-btn { border: 0; background: transparent; cursor: pointer; padding: 6px 10px; border-radius: 8px; font-size: 18px; line-height: 1; }
+.icon-btn:hover { background: var(--surface-2); }
+
+/* Monatsleiste */
+.monthbar { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.monthbar h2 { font-family: var(--f-display); font-size: 26px; margin: 0 8px; min-width: 9ch; text-wrap: balance; }
+
+/* Kennzahlen */
+.stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 1px; background: var(--line); border: 1px solid var(--line); border-radius: var(--r); overflow: hidden; }
+.stat { background: var(--surface); padding: 12px 14px; display: grid; gap: 2px; min-width: 0; }
+.stat .lbl { font-size: 11px; text-transform: uppercase; letter-spacing: .07em; color: var(--muted); }
+.stat .val { font-family: var(--f-mono); font-variant-numeric: tabular-nums; font-size: 20px; font-weight: 600; }
+.stat .sub { font-size: 12px; color: var(--muted); }
+
+/* Kalender */
+.cal { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); overflow: hidden; }
+.cal-head, .cal-row { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)) minmax(0, .9fr); }
+.cal-head div { padding: 8px 10px; font-size: 11px; text-transform: uppercase; letter-spacing: .07em; color: var(--muted); border-bottom: 1px solid var(--line); background: var(--surface-2); }
+.cal-row + .cal-row { border-top: 1px solid var(--line); }
+.day {
+  min-height: 96px; padding: 8px 10px; border: 0; border-right: 1px solid var(--line); background: var(--surface);
+  text-align: left; cursor: pointer; display: flex; flex-direction: column; gap: 4px; position: relative; min-width: 0;
+}
+.day:hover { background: var(--surface-2); }
+.day.out { color: var(--muted); background: var(--bg); }
+.day.out .d { opacity: .55; }
+.day .d { font-size: 13px; font-weight: 500; }
+.day.today .d { background: var(--accent); color: var(--accent-fg); border-radius: 999px; padding: 0 7px; align-self: flex-start; }
+.day.pos { background: var(--win-bg); }
+.day.neg { background: var(--loss-bg); }
+.day.pos:hover, .day.neg:hover { filter: brightness(.97); }
+.day .pnl { font-family: var(--f-mono); font-variant-numeric: tabular-nums; font-weight: 600; font-size: 15px; margin-top: auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.day .meta { font-size: 12px; color: var(--muted); display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+.dot { width: 7px; height: 7px; border-radius: 50%; display: inline-block; }
+.dot.ok { background: var(--win); }
+.dot.part { background: var(--warn); }
+.week { padding: 8px 10px; display: flex; flex-direction: column; gap: 2px; background: var(--surface-2); min-width: 0; }
+.week .lbl { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .07em; }
+.week .pnl { font-family: var(--f-mono); font-variant-numeric: tabular-nums; font-weight: 600; margin-top: auto; }
+.week .meta { font-size: 12px; color: var(--muted); }
+
+.empty-hint { padding: 14px 16px; border: 1px dashed var(--line); border-radius: var(--r); color: var(--muted); display: flex; gap: 12px; align-items: center; flex-wrap: wrap; justify-content: space-between; }
+
+/* Dialoge */
+.overlay { position: fixed; inset: 0; background: rgba(10, 16, 26, .45); display: flex; align-items: flex-start; justify-content: center; z-index: 50;
+  padding: max(24px, env(safe-area-inset-top, 0px)) max(12px, env(safe-area-inset-right, 0px)) max(24px, env(safe-area-inset-bottom, 0px)) max(12px, env(safe-area-inset-left, 0px)); overflow-y: auto; }
+.dialog { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; box-shadow: var(--shadow); width: 100%; max-width: 640px; display: grid; }
+.dialog.wide { max-width: 760px; }
+.dlg-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 16px 18px; border-bottom: 1px solid var(--line); }
+.dlg-head h3 { margin: 0; font-family: var(--f-display); font-size: 19px; }
+.dlg-head .eyebrow { font-size: 11px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); }
+.dlg-body { padding: 16px 18px; display: grid; gap: 14px; min-width: 0; }
+.dlg-foot { padding: 14px 18px; border-top: 1px solid var(--line); display: flex; justify-content: space-between; gap: 8px; flex-wrap: wrap; align-items: center; }
+
+.daysum { display: flex; gap: 18px; flex-wrap: wrap; }
+.daysum div { display: grid; }
+.daysum .lbl { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .07em; }
+.daysum .val { font-family: var(--f-mono); font-weight: 600; font-size: 17px; }
+
+.trade { border: 1px solid var(--line); border-radius: var(--r); padding: 12px 14px; display: grid; gap: 8px; min-width: 0; }
+.trade-top { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.sym { font-family: var(--f-display); font-weight: 600; font-size: 16px; }
+.pill { font-size: 11px; font-weight: 600; letter-spacing: .05em; text-transform: uppercase; padding: 2px 8px; border-radius: 999px; background: var(--surface-2); color: var(--muted); }
+.pill.long { background: var(--win-bg); color: var(--win); }
+.pill.short { background: var(--loss-bg); color: var(--loss); }
+.pill.ok { background: var(--win-bg); color: var(--win); }
+.pill.part { background: var(--warn-bg); color: var(--warn); }
+.trade-top .pnl { margin-left: auto; font-family: var(--f-mono); font-weight: 600; font-size: 16px; }
+.kv { display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: 6px 14px; font-size: 13px; }
+.kv span { color: var(--muted); display: block; font-size: 11px; text-transform: uppercase; letter-spacing: .06em; }
+.notes { font-size: 13px; white-space: pre-wrap; overflow-wrap: anywhere; color: var(--fg); background: var(--surface-2); border-radius: 8px; padding: 8px 10px; }
+.chk-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; font-size: 13px; }
+.chk-list li { display: flex; gap: 8px; align-items: baseline; }
+.chk-list .y { color: var(--win); font-weight: 600; }
+.chk-list .n { color: var(--loss); font-weight: 600; }
+details summary { cursor: pointer; font-size: 13px; color: var(--muted); }
+.trade-actions { display: flex; gap: 6px; justify-content: flex-end; flex-wrap: wrap; align-items: center; }
+.confirm-note { font-size: 13px; color: var(--loss); }
+
+/* Checkliste (Abfrage) */
+.steps { display: flex; gap: 8px; font-size: 12px; color: var(--muted); }
+.steps b { color: var(--fg); }
+.check { display: flex; align-items: flex-start; gap: 12px; padding: 12px 14px; border: 1px solid var(--line); border-radius: var(--r); cursor: pointer; user-select: none; }
+.check:hover { background: var(--surface-2); }
+.check input { width: 20px; height: 20px; margin: 1px 0 0; accent-color: var(--win); flex: none; }
+.check.on { border-color: var(--win); background: var(--win-bg); }
+.check .t { font-weight: 500; overflow-wrap: anywhere; }
+.progress { height: 6px; background: var(--surface-2); border-radius: 99px; overflow: hidden; }
+.progress i { display: block; height: 100%; background: var(--win); transition: width .2s; }
+.warnbox { background: var(--warn-bg); color: var(--warn); border-radius: 8px; padding: 10px 12px; font-size: 13px; font-weight: 500; }
+
+/* Formular */
+.grid2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; }
+label.f { display: grid; gap: 4px; font-size: 12px; color: var(--muted); font-weight: 500; min-width: 0; }
+label.f input, label.f select, label.f textarea {
+  border: 1px solid var(--line); background: var(--surface); border-radius: 8px; padding: 8px 10px; font-size: 14px; width: 100%; min-width: 0;
+}
+label.f textarea { min-height: 80px; resize: vertical; }
+.seg { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+.seg button { border: 0; background: var(--surface); padding: 8px 16px; cursor: pointer; font-weight: 600; }
+.seg button[aria-pressed="true"].l { background: var(--win); color: var(--surface); }
+.seg button[aria-pressed="true"].s { background: var(--loss); color: var(--surface); }
+.hint { font-size: 12px; color: var(--muted); }
+.err { color: var(--loss); font-size: 13px; }
+
+/* Checkliste bearbeiten */
+.edit-list { display: grid; gap: 6px; }
+.edit-item { display: flex; gap: 6px; align-items: center; }
+.edit-item input { flex: 1; min-width: 0; border: 1px solid var(--line); background: var(--surface); border-radius: 8px; padding: 8px 10px; }
+.edit-item .icon-btn { font-size: 15px; padding: 6px 8px; }
+
+.toast { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(20px + env(safe-area-inset-bottom, 0px)); background: var(--fg); color: var(--bg); padding: 10px 16px; border-radius: 8px; font-weight: 500; z-index: 80; box-shadow: var(--shadow); }
+
+@media (max-width: 720px) {
+  .cal-head, .cal-row { grid-template-columns: repeat(7, minmax(0, 1fr)); }
+  .cal-head .wk, .week { display: none; }
+  .day { min-height: 64px; padding: 5px 4px; }
+  .day:nth-child(7) { border-right: 0; }
+  .day .meta { display: none; }
+  .day .pnl { font-size: 11px; }
+  .day .d { font-size: 12px; }
+  .cal-head div { padding: 6px 4px; text-align: center; }
+  .monthbar h2 { font-size: 21px; }
+  .stat .val { font-size: 17px; }
+  .stats { grid-template-columns: 1fr 1fr; }
+  .stats .stat:last-child { grid-column: 1 / -1; }
+}
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <div class="brand">
+      <h1>Trading Journal</h1>
+      <span class="sync" id="syncState">lokal gespeichert</span>
+    </div>
+    <div class="actions">
+      <button class="btn" id="btnChecklist" type="button">☑ Checkliste</button>
+      <button class="btn primary" id="btnNewTrade" type="button">＋ Trade eintragen</button>
+    </div>
+  </header>
+
+  <div class="monthbar">
+    <button class="icon-btn" id="prevMonth" type="button" aria-label="Vorheriger Monat">‹</button>
+    <h2 id="monthTitle">–</h2>
+    <button class="icon-btn" id="nextMonth" type="button" aria-label="Nächster Monat">›</button>
+    <button class="btn small ghost" id="todayBtn" type="button">Heute</button>
+  </div>
+
+  <section class="stats" id="stats" aria-label="Monatskennzahlen"></section>
+
+  <div class="empty-hint" id="emptyHint" hidden>
+    <span>Noch keine Trades in diesem Monat. Klick auf einen Tag oder auf „Trade eintragen“ – vorher fragt dich deine Checkliste ab.</span>
+  </div>
+
+  <section class="cal" aria-label="Kalender">
+    <div class="cal-head">
+      <div>Mo</div><div>Di</div><div>Mi</div><div>Do</div><div>Fr</div><div>Sa</div><div>So</div><div class="wk">Woche</div>
+    </div>
+    <div id="calBody"></div>
+  </section>
+</div>
+
+<div id="overlay" class="overlay" hidden></div>
+<div id="toast" class="toast" hidden role="status"></div>
+
+<script>
+(() => {
+  "use strict";
+
+  // ---------- Hilfsfunktionen ----------
+  const $ = (s, r = document) => r.querySelector(s);
+  const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  const pad = n => String(n).padStart(2, "0");
+  const ymd = d => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+  const parseNum = v => { if (v === "" || v == null) return null; const n = parseFloat(String(v).replace(/\s/g, "").replace(",", ".")); return Number.isFinite(n) ? n : null; };
+  const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+  const MONTHS = ["Januar", "Februar", "März", "April", "Mai", "Juni", "Juli", "August", "September", "Oktober", "November", "Dezember"];
+  const WD = ["Sonntag", "Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag", "Samstag"];
+  const nf2 = new Intl.NumberFormat("de-DE", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const nfp = new Intl.NumberFormat("de-DE", { maximumFractionDigits: 6 });
+
+  const money = (v, sign = true) => {
+    const s = nf2.format(Math.abs(v));
+    const cur = state.settings.currency || "€";
+    return `${sign ? (v > 0 ? "+" : v < 0 ? "−" : "") : (v < 0 ? "−" : "")}${s} ${cur}`;
+  };
+  const moneyShort = v => {
+    const a = Math.abs(v);
+    const s = a >= 10000 ? (a / 1000).toFixed(1).replace(".", ",") + "k" : a >= 1000 ? (a / 1000).toFixed(2).replace(".", ",") + "k" : Math.round(a).toString();
+    return (v > 0 ? "+" : v < 0 ? "−" : "") + s;
+  };
+  const cls = v => v > 0 ? "win" : v < 0 ? "loss" : "";
+
+  const DEFAULT_CHECKLIST = [
+    "Trend auf dem höheren Timeframe bestätigt",
+    "Setup entspricht meinem Trading-Plan",
+    "Stop-Loss ist gesetzt",
+    "Risiko maximal 1 % des Kontos",
+    "Chance-Risiko-Verhältnis mindestens 1:2",
+    "Keine wichtigen News in den nächsten 30 Minuten",
+    "Ich bin ruhig und trade nicht aus Rache oder FOMO",
+  ].map(text => ({ id: uid(), text }));
+
+  // ---------- Zustand ----------
+  const state = {
+    trades: [],
+    settings: { checklist: DEFAULT_CHECKLIST, currency: "€" },
+    view: new Date(new Date().getFullYear(), new Date().getMonth(), 1),
+  };
+
+  // ---------- Speicher: claude.ai-Datenbank, sonst localStorage ----------
+  const LS_KEY = "tradingJournal.v1";
+  const Store = {
+    mode: "local",
+    col: null,
+    loadLocal() {
+      try {
+        const raw = localStorage.getItem(LS_KEY);
+        if (!raw) return;
+        const data = JSON.parse(raw);
+        if (Array.isArray(data.trades)) state.trades = data.trades;
+        if (data.settings) state.settings = { ...state.settings, ...data.settings };
+      } catch (e) { /* kein Speicher verfügbar */ }
+    },
+    saveLocal() {
+      try { localStorage.setItem(LS_KEY, JSON.stringify({ trades: state.trades, settings: state.settings })); } catch (e) {}
+    },
+    async connect() {
+      try {
+        if (!window.claude || typeof window.claude.use !== "function") return;
+        const [db, user] = await Promise.all([window.claude.use("db"), window.claude.use("user")]);
+        if (!db || !user) return;
+        const id = await user.id();
+        if (!id) return;
+        this.col = db.collection("data/users/" + id);
+        this.mode = "db";
+        setSync("verbinde …");
+        const timer = setTimeout(() => setSync("Server nicht erreichbar – Anzeige evtl. veraltet"), 10000);
+        let first = true;
+        this.col.onSnapshot(snap => {
+          if (!snap.metadata.fromCache) { clearTimeout(timer); setSync("synchronisiert"); }
+          const trades = [];
+          let settings = null;
+          snap.docs.forEach(d => {
+            const v = d.data();
+            if (!v) return;
+            if (d.id === "settings") settings = v;
+            else if (d.id.startsWith("t_")) trades.push({ ...v, id: d.id.slice(2) });
+          });
+          if (first && !snap.metadata.fromCache) {
+            first = false;
+            // Einmalige Übernahme lokaler Daten in die Datenbank, falls dort noch nichts liegt
+            if (!settings && trades.length === 0 && (state.trades.length || state.settings)) {
+              this.migrate();
+              return;
+            }
+          }
+          state.trades = trades;
+          if (settings) state.settings = { ...state.settings, ...settings };
+          render();
+          refreshOpenDay();
+        }, () => { clearTimeout(timer); setSync("Sync-Fehler – Änderungen nur lokal"); this.mode = "local"; });
+      } catch (e) { /* bleibt lokal */ }
+    },
+    async migrate() {
+      try {
+        await this.col.doc("settings").set(clone(state.settings));
+        for (const t of state.trades) await this.col.doc("t_" + t.id).set(stripId(t));
+      } catch (e) {}
+    },
+    async putTrade(t) {
+      const i = state.trades.findIndex(x => x.id === t.id);
+      if (i >= 0) state.trades[i] = t; else state.trades.push(t);
+      this.saveLocal(); render();
+      if (this.mode === "db") { try { await this.col.doc("t_" + t.id).set(stripId(t)); } catch (e) { toast("Speichern auf dem Server fehlgeschlagen"); } }
+    },
+    async deleteTrade(id) {
+      state.trades = state.trades.filter(x => x.id !== id);
+      this.saveLocal(); render();
+      if (this.mode === "db") { try { await this.col.doc("t_" + id).delete(); } catch (e) { toast("Löschen auf dem Server fehlgeschlagen"); } }
+    },
+    async putSettings() {
+      this.saveLocal(); render();
+      if (this.mode === "db") { try { await this.col.doc("settings").set(clone(state.settings)); } catch (e) { toast("Speichern auf dem Server fehlgeschlagen"); } }
+    },
+  };
+  const clone = o => JSON.parse(JSON.stringify(o));
+  const stripId = t => { const c = clone(t); delete c.id; return c; };
+  const setSync = s => { $("#syncState").textContent = s; };
+
+  let toastTimer;
+  function toast(msg) {
+    const el = $("#toast"); el.textContent = msg; el.hidden = false;
+    clearTimeout(toastTimer); toastTimer = setTimeout(() => el.hidden = true, 2400);
+  }
+
+  // ---------- Auswertung ----------
+  const tradesOn = date => state.trades.filter(t => t.date === date).sort((a, b) => (a.time || "").localeCompare(b.time || ""));
+  const sum = arr => arr.reduce((s, t) => s + (Number(t.pnl) || 0), 0);
+  const fullChecklist = t => Array.isArray(t.checklist) && t.checklist.length > 0 && t.checklist.every(c => c.ok);
+  const checklistRatio = t => Array.isArray(t.checklist) && t.checklist.length ? t.checklist.filter(c => c.ok).length / t.checklist.length : null;
+
+  function monthStats(trades) {
+    const wins = trades.filter(t => t.pnl > 0), losses = trades.filter(t => t.pnl < 0);
+    const gw = sum(wins), gl = Math.abs(sum(losses));
+    const byDay = {};
+    trades.forEach(t => byDay[t.date] = (byDay[t.date] || 0) + (Number(t.pnl) || 0));
+    const days = Object.entries(byDay);
+    const best = days.reduce((b, d) => !b || d[1] > b[1] ? d : b, null);
+    const worst = days.reduce((b, d) => !b || d[1] < b[1] ? d : b, null);
+    const withCL = trades.filter(t => Array.isArray(t.checklist) && t.checklist.length);
+    const full = withCL.filter(fullChecklist), notFull = withCL.filter(t => !fullChecklist(t));
+    return {
+      total: sum(trades), n: trades.length,
+      winrate: trades.length ? wins.length / trades.length : null,
+      pf: gl > 0 ? gw / gl : (gw > 0 ? Infinity : null),
+      avgWin: wins.length ? gw / wins.length : null, avgLoss: losses.length ? -gl / losses.length : null,
+      best, worst, greenDays: days.filter(d => d[1] > 0).length, tradingDays: days.length,
+      discipline: withCL.length ? full.length / withCL.length : null,
+      pnlFull: sum(full), pnlNotFull: sum(notFull), nFull: full.length, nNotFull: notFull.length,
+    };
+  }
+
+  // ---------- Darstellung ----------
+  function render() {
+    const y = state.view.getFullYear(), m = state.view.getMonth();
+    $("#monthTitle").textContent = `${MONTHS[m]} ${y}`;
+    const prefix = `${y}-${pad(m + 1)}`;
+    const monthTrades = state.trades.filter(t => (t.date || "").startsWith(prefix));
+    renderStats(monthStats(monthTrades));
+    $("#emptyHint").hidden = monthTrades.length > 0;
+
+    const first = new Date(y, m, 1);
+    const start = new Date(first); start.setDate(1 - ((first.getDay() + 6) % 7));
+    const last = new Date(y, m + 1, 0);
+    const end = new Date(last); end.setDate(last.getDate() + (6 - ((last.getDay() + 6) % 7)));
+    const today = ymd(new Date());
+
+    let html = "", d = new Date(start), weekNo = 0;
+    while (d <= end) {
+      weekNo++;
+      html += `<div class="cal-row">`;
+      let wkTrades = [];
+      for (let i = 0; i < 7; i++) {
+        const key = ymd(d);
+        const ts = tradesOn(key);
+        const inMonth = d.getMonth() === m;
+        if (inMonth) wkTrades = wkTrades.concat(ts);
+        const p = sum(ts);
+        const allFull = ts.length && ts.every(fullChecklist);
+        const cl = ["day", inMonth ? "" : "out", key === today ? "today" : "", ts.length ? (p > 0 ? "pos" : p < 0 ? "neg" : "") : ""].join(" ");
+        html += `<button type="button" class="${cl}" data-date="${key}" aria-label="${d.getDate()}. ${MONTHS[d.getMonth()]}${ts.length ? `, ${ts.length} Trades, ${money(p)}` : ""}">
+          <span class="d">${d.getDate()}</span>
+          ${ts.length ? `<span class="meta"><span class="dot ${allFull ? "ok" : "part"}" title="${allFull ? "Checkliste vollständig" : "Checkliste nicht vollständig"}"></span>${ts.length} ${ts.length === 1 ? "Trade" : "Trades"}</span>
+          <span class="pnl ${cls(p)}">${moneyShort(p)}</span>` : ""}
+        </button>`;
+        d.setDate(d.getDate() + 1);
+      }
+      const wp = sum(wkTrades);
+      html += `<div class="week"><span class="lbl">Woche ${weekNo}</span>
+        ${wkTrades.length ? `<span class="meta">${wkTrades.length} ${wkTrades.length === 1 ? "Trade" : "Trades"}</span><span class="pnl ${cls(wp)}">${money(wp)}</span>` : `<span class="meta">–</span>`}</div>`;
+      html += `</div>`;
+    }
+    $("#calBody").innerHTML = html;
+  }
+
+  function renderStats(s) {
+    const pct = v => v == null ? "–" : Math.round(v * 100) + " %";
+    const fmtDay = d => d ? `${parseInt(d[0].slice(8))}. · ${money(d[1])}` : "–";
+    $("#stats").innerHTML = `
+      <div class="stat"><span class="lbl">Monats-P&amp;L</span><span class="val ${cls(s.total)}">${money(s.total)}</span><span class="sub">${s.n} ${s.n === 1 ? "Trade" : "Trades"} an ${s.tradingDays} ${s.tradingDays === 1 ? "Tag" : "Tagen"}</span></div>
+      <div class="stat"><span class="lbl">Trefferquote</span><span class="val">${pct(s.winrate)}</span><span class="sub">${s.greenDays} von ${s.tradingDays} Tagen im Plus</span></div>
+      <div class="stat"><span class="lbl">Profit-Faktor</span><span class="val">${s.pf == null ? "–" : s.pf === Infinity ? "∞" : nf2.format(s.pf)}</span><span class="sub">Ø ${s.avgWin == null ? "–" : money(s.avgWin)} / ${s.avgLoss == null ? "–" : money(s.avgLoss)}</span></div>
+      <div class="stat"><span class="lbl">Bester / schlechtester Tag</span><span class="val" style="font-size:15px"><span class="win">${fmtDay(s.best)}</span></span><span class="sub ${s.worst && s.worst[1] < 0 ? "loss" : ""}">${fmtDay(s.worst)}</span></div>
+      <div class="stat"><span class="lbl">Checklisten-Disziplin</span><span class="val">${pct(s.discipline)}</span>
+        <span class="sub">Vollständig: <span class="${cls(s.pnlFull)}">${money(s.pnlFull)}</span> (${s.nFull}) · sonst: <span class="${cls(s.pnlNotFull)}">${money(s.pnlNotFull)}</span> (${s.nNotFull})</span></div>`;
+  }
+
+  // ---------- Dialog-Gerüst ----------
+  let openDay = null;
+  let dialogCleanup = null;
+  function openDialog(html, { wide = false } = {}) {
+    const ov = $("#overlay");
+    openDay = null;
+    ov.innerHTML = `<div class="dialog ${wide ? "wide" : ""}" role="dialog" aria-modal="true">${html}</div>`;
+    ov.hidden = false;
+    document.body.style.overflow = "hidden";
+    const f = ov.querySelector("[autofocus], input, button.primary, button");
+    if (f) setTimeout(() => f.focus(), 0);
+    return ov.firstElementChild;
+  }
+  function closeDialog() {
+    $("#overlay").hidden = true; $("#overlay").innerHTML = ""; document.body.style.overflow = "";
+    openDay = null; if (dialogCleanup) { dialogCleanup(); dialogCleanup = null; }
+  }
+  $("#overlay").addEventListener("mousedown", e => { if (e.target.id === "overlay") closeDialog(); });
+  document.addEventListener("keydown", e => { if (e.key === "Escape" && !$("#overlay").hidden) closeDialog(); });
+
+  // ---------- Tagesansicht ----------
+  function showDay(date) {
+    const d = new Date(date + "T12:00:00");
+    const ts = tradesOn(date);
+    const p = sum(ts);
+    const wins = ts.filter(t => t.pnl > 0).length;
+    const full = ts.filter(fullChecklist).length;
+    const dlg = openDialog(`
+      <div class="dlg-head">
+        <div><div class="eyebrow">${WD[d.getDay()]}</div><h3>${d.getDate()}. ${MONTHS[d.getMonth()]} ${d.getFullYear()}</h3></div>
+        <button class="icon-btn" data-act="close" type="button" aria-label="Schließen">✕</button>
+      </div>
+      <div class="dlg-body">
+        ${ts.length ? `<div class="daysum">
+          <div><span class="lbl">Tages-P&amp;L</span><span class="val ${cls(p)}">${money(p)}</span></div>
+          <div><span class="lbl">Trades</span><span class="val">${ts.length}</span></div>
+          <div><span class="lbl">Gewinner</span><span class="val">${wins} / ${ts.length}</span></div>
+          <div><span class="lbl">Checkliste voll</span><span class="val">${full} / ${ts.length}</span></div>
+        </div>
+        ${ts.map(tradeCard).join("")}` : `<p class="hint" style="margin:0">An diesem Tag sind noch keine Trades eingetragen.</p>`}
+      </div>
+      <div class="dlg-foot">
+        <span class="hint">${ts.length ? "Bearbeiten öffnet den Trade ohne erneute Checklisten-Abfrage." : ""}</span>
+        <button class="btn primary" data-act="add" type="button">＋ Trade an diesem Tag</button>
+      </div>`, { wide: true });
+    openDay = date;
+    dlg.addEventListener("click", e => {
+      const b = e.target.closest("[data-act]"); if (!b) return;
+      const id = b.closest("[data-id]")?.dataset.id;
+      if (b.dataset.act === "close") closeDialog();
+      if (b.dataset.act === "add") startNewTrade(date);
+      if (b.dataset.act === "edit") showTradeForm(state.trades.find(t => t.id === id), null, date);
+      if (b.dataset.act === "del") { b.hidden = true; b.parentElement.querySelector(".del-confirm").hidden = false; }
+      if (b.dataset.act === "del-no") { b.parentElement.hidden = true; b.closest(".trade-actions").querySelector("[data-act=del]").hidden = false; }
+      if (b.dataset.act === "del-yes") { Store.deleteTrade(id).then(() => { toast("Trade gelöscht"); showDay(date); }); }
+    });
+  }
+  function refreshOpenDay() {
+    // Tagesansicht nach Server-Update neu zeichnen, aber nur wenn kein Formular offen ist
+    if (openDay) showDay(openDay);
+  }
+
+  function tradeCard(t) {
+    const r = checklistRatio(t);
+    const rr = t.risk ? t.pnl / t.risk : null;
+    const kv = [
+      ["Einstieg", t.entry != null ? nfp.format(t.entry) : null],
+      ["Ausstieg", t.exit != null ? nfp.format(t.exit) : null],
+      ["Menge", t.qty != null ? nfp.format(t.qty) : null],
+      ["Risiko", t.risk ? money(t.risk, false) : null],
+      ["R-Multiple", rr != null ? (rr > 0 ? "+" : "") + nf2.format(rr) + " R" : null],
+      ["Setup", t.setup || null],
+    ].filter(x => x[1] != null && x[1] !== "");
+    return `<article class="trade" data-id="${esc(t.id)}">
+      <div class="trade-top">
+        ${t.time ? `<span class="num hint">${esc(t.time)}</span>` : ""}
+        <span class="sym">${esc(t.symbol || "—")}</span>
+        <span class="pill ${t.side === "short" ? "short" : "long"}">${t.side === "short" ? "Short" : "Long"}</span>
+        ${r == null ? "" : `<span class="pill ${r === 1 ? "ok" : "part"}">Checkliste ${t.checklist.filter(c => c.ok).length}/${t.checklist.length}</span>`}
+        <span class="pnl ${cls(t.pnl)}">${money(t.pnl)}</span>
+      </div>
+      ${kv.length ? `<div class="kv">${kv.map(([k, v]) => `<div><span>${k}</span><span class="num" style="display:inline;color:inherit;font-size:13px;text-transform:none;letter-spacing:0">${esc(v)}</span></div>`).join("")}</div>` : ""}
+      ${t.notes ? `<div class="notes">${esc(t.notes)}</div>` : ""}
+      ${r == null ? "" : `<details><summary>Checkliste beim Eintragen</summary>
+        <ul class="chk-list">${t.checklist.map(c => `<li><span class="${c.ok ? "y" : "n"}">${c.ok ? "✓" : "✗"}</span><span>${esc(c.text)}</span></li>`).join("")}</ul></details>`}
+      <div class="trade-actions">
+        <button class="btn small ghost" data-act="edit" type="button">Bearbeiten</button>
+        <button class="btn small ghost danger" data-act="del" type="button">Löschen</button>
+        <span class="del-confirm" hidden><span class="confirm-note">Wirklich löschen?</span>
+          <button class="btn small danger" data-act="del-yes" type="button">Ja, löschen</button>
+          <button class="btn small ghost" data-act="del-no" type="button">Abbrechen</button></span>
+      </div>
+    </article>`;
+  }
+
+  // ---------- Neuer Trade: Schritt 1 Checkliste ----------
+  function startNewTrade(date) {
+    const items = state.settings.checklist || [];
+    if (!items.length) { showTradeForm(null, [], date); return; }
+    const checked = new Set();
+    const dlg = openDialog(`
+      <div class="dlg-head">
+        <div><div class="steps"><b>1 Checkliste</b><span>›</span><span>2 Trade-Details</span></div><h3>Vor dem Trade: Checkliste</h3></div>
+        <button class="icon-btn" data-act="close" type="button" aria-label="Schließen">✕</button>
+      </div>
+      <div class="dlg-body">
+        <p class="hint" style="margin:0">Hake ehrlich ab, was bei diesem Trade erfüllt war. Das Ergebnis wird mit dem Trade gespeichert.</p>
+        <div class="progress" aria-hidden="true"><i id="clBar" style="width:0%"></i></div>
+        <div style="display:grid;gap:8px">
+          ${items.map((it, i) => `<label class="check" for="cl_${i}"><input type="checkbox" id="cl_${i}" data-i="${i}"><span class="t">${esc(it.text)}</span></label>`).join("")}
+        </div>
+        <div class="warnbox" id="clWarn" hidden></div>
+      </div>
+      <div class="dlg-foot">
+        <span class="hint" id="clCount">0 von ${items.length} erfüllt</span>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <button class="btn ghost" data-act="close" type="button">Abbrechen</button>
+          <button class="btn primary" data-act="next" type="button">Weiter</button>
+        </div>
+      </div>`);
+    let warned = false;
+    const update = () => {
+      $("#clBar").style.width = (checked.size / items.length * 100) + "%";
+      $("#clCount").textContent = `${checked.size} von ${items.length} erfüllt`;
+      dlg.querySelectorAll(".check").forEach((el, i) => el.classList.toggle("on", checked.has(i)));
+      if (warned && checked.size === items.length) { $("#clWarn").hidden = true; warned = false; dlg.querySelector("[data-act=next]").textContent = "Weiter"; }
+    };
+    dlg.addEventListener("change", e => {
+      if (e.target.dataset.i == null) return;
+      const i = +e.target.dataset.i; e.target.checked ? checked.add(i) : checked.delete(i); update();
+    });
+    dlg.addEventListener("click", e => {
+      const b = e.target.closest("[data-act]"); if (!b) return;
+      if (b.dataset.act === "close") closeDialog();
+      if (b.dataset.act === "next") {
+        if (checked.size < items.length && !warned) {
+          warned = true;
+          const missing = items.length - checked.size;
+          $("#clWarn").textContent = `${missing} ${missing === 1 ? "Punkt ist" : "Punkte sind"} nicht erfüllt. Willst du den Trade trotzdem eintragen? Er wird als „Checkliste unvollständig“ markiert.`;
+          $("#clWarn").hidden = false;
+          b.textContent = "Trotzdem eintragen";
+          return;
+        }
+        const result = items.map((it, i) => ({ text: it.text, ok: checked.has(i) }));
+        showTradeForm(null, result, date);
+      }
+    });
+  }
+
+  // ---------- Schritt 2 / Bearbeiten: Formular ----------
+  function showTradeForm(existing, checklistResult, date) {
+    const t = existing ? { ...existing } : { id: uid(), date: date || ymd(new Date()), side: "long", checklist: checklistResult || [] };
+    const v = x => x == null ? "" : String(x).replace(".", ",");
+    const dlg = openDialog(`
+      <form id="tradeForm" novalidate>
+      <div class="dlg-head">
+        <div>${existing ? `<div class="eyebrow">Trade bearbeiten</div>` : `<div class="steps"><span>1 Checkliste</span><span>›</span><b>2 Trade-Details</b></div>`}
+          <h3>${existing ? esc(t.symbol || "Trade") : "Trade-Details"}</h3></div>
+        <button class="icon-btn" data-act="close" type="button" aria-label="Schließen">✕</button>
+      </div>
+      <div class="dlg-body">
+        <div class="grid2">
+          <label class="f" for="f_date">Datum<input type="date" id="f_date" value="${esc(t.date)}" required></label>
+          <label class="f" for="f_time">Uhrzeit<input type="time" id="f_time" value="${esc(t.time || "")}"></label>
+          <label class="f" for="f_symbol">Symbol<input id="f_symbol" value="${esc(t.symbol || "")}" placeholder="z. B. DAX, EURUSD, AAPL" autocomplete="off" autofocus></label>
+          <div class="f" style="display:grid;gap:4px;font-size:12px;color:var(--muted);font-weight:500">Richtung
+            <div class="seg" role="group" aria-label="Richtung">
+              <button type="button" class="l" data-side="long" aria-pressed="${t.side !== "short"}">Long</button>
+              <button type="button" class="s" data-side="short" aria-pressed="${t.side === "short"}">Short</button>
+            </div></div>
+        </div>
+        <div class="grid2">
+          <label class="f" for="f_entry">Einstieg<input id="f_entry" inputmode="decimal" value="${esc(v(t.entry))}"></label>
+          <label class="f" for="f_exit">Ausstieg<input id="f_exit" inputmode="decimal" value="${esc(v(t.exit))}"></label>
+          <label class="f" for="f_qty">Menge / Kontraktwert<input id="f_qty" inputmode="decimal" value="${esc(v(t.qty))}" placeholder="Stück oder € pro Punkt"></label>
+        </div>
+        <div class="grid2">
+          <label class="f" for="f_pnl">Gewinn / Verlust (${esc(state.settings.currency)})<input id="f_pnl" inputmode="decimal" value="${esc(v(t.pnl))}" placeholder="wird berechnet"></label>
+          <label class="f" for="f_risk">Risiko (${esc(state.settings.currency)}, optional)<input id="f_risk" inputmode="decimal" value="${esc(v(t.risk))}" placeholder="für R-Multiple"></label>
+          <label class="f" for="f_setup">Setup<input id="f_setup" value="${esc(t.setup || "")}" placeholder="z. B. Breakout, Pullback" list="setupList" autocomplete="off"></label>
+        </div>
+        <datalist id="setupList">${[...new Set(state.trades.map(x => x.setup).filter(Boolean))].map(s => `<option value="${esc(s)}"></option>`).join("")}</datalist>
+        <span class="hint" id="pnlHint">P&amp;L wird aus Einstieg, Ausstieg und Menge berechnet, solange du es nicht selbst einträgst.</span>
+        <label class="f" for="f_notes">Notizen<textarea id="f_notes" placeholder="Warum bin ich rein? Was lief gut, was nicht?">${esc(t.notes || "")}</textarea></label>
+        ${t.checklist && t.checklist.length ? `<details ${existing ? "" : "open"}><summary>Checkliste: ${t.checklist.filter(c => c.ok).length} von ${t.checklist.length} erfüllt</summary>
+          <ul class="chk-list" style="margin-top:6px">${t.checklist.map(c => `<li><span class="${c.ok ? "y" : "n"}">${c.ok ? "✓" : "✗"}</span><span>${esc(c.text)}</span></li>`).join("")}</ul></details>` : ""}
+        <div class="err" id="formErr" hidden></div>
+      </div>
+      <div class="dlg-foot">
+        <button class="btn ghost" data-act="${existing ? "back" : "close"}" type="button">${existing ? "Zurück" : "Abbrechen"}</button>
+        <button class="btn primary" type="submit">Trade speichern</button>
+      </div>
+      </form>`);
+    let side = t.side === "short" ? "short" : "long";
+    let pnlTouched = existing && existing.pnl != null && !(existing.entry != null && existing.exit != null && existing.qty != null);
+    const calc = () => {
+      if (pnlTouched) return;
+      const e = parseNum($("#f_entry").value), x = parseNum($("#f_exit").value), q = parseNum($("#f_qty").value);
+      if (e != null && x != null && q != null) {
+        const p = (x - e) * q * (side === "short" ? -1 : 1);
+        $("#f_pnl").value = nf2.format(p).replace(/\./g, "");
+      }
+    };
+    dlg.addEventListener("input", e => {
+      if (e.target.id === "f_pnl") pnlTouched = e.target.value.trim() !== "";
+      if (["f_entry", "f_exit", "f_qty"].includes(e.target.id)) calc();
+    });
+    dlg.addEventListener("click", e => {
+      const sb = e.target.closest("[data-side]");
+      if (sb) { side = sb.dataset.side; dlg.querySelectorAll("[data-side]").forEach(b => b.setAttribute("aria-pressed", b.dataset.side === side)); calc(); }
+      const b = e.target.closest("[data-act]"); if (!b) return;
+      if (b.dataset.act === "close") closeDialog();
+      if (b.dataset.act === "back") showDay(t.date);
+    });
+    $("#tradeForm").addEventListener("submit", e => {
+      e.preventDefault();
+      const date = $("#f_date").value;
+      const pnl = parseNum($("#f_pnl").value);
+      const err = $("#formErr");
+      if (!date) { err.textContent = "Bitte ein Datum wählen."; err.hidden = false; return; }
+      if (pnl == null) { err.textContent = "Bitte Gewinn/Verlust eintragen – oder Einstieg, Ausstieg und Menge, dann wird er berechnet."; err.hidden = false; return; }
+      const trade = {
+        ...t, date, side, pnl,
+        time: $("#f_time").value || "",
+        symbol: $("#f_symbol").value.trim().toUpperCase(),
+        entry: parseNum($("#f_entry").value), exit: parseNum($("#f_exit").value), qty: parseNum($("#f_qty").value),
+        risk: parseNum($("#f_risk").value),
+        setup: $("#f_setup").value.trim(), notes: $("#f_notes").value.trim(),
+        updatedAt: new Date().toISOString(),
+      };
+      if (!existing) trade.createdAt = trade.updatedAt;
+      Store.putTrade(trade);
+      const [ty, tm] = date.split("-").map(Number);
+      state.view = new Date(ty, tm - 1, 1); render();
+      toast(existing ? "Trade aktualisiert" : "Trade gespeichert");
+      showDay(date);
+    });
+  }
+
+  // ---------- Checkliste bearbeiten ----------
+  function showChecklistEditor() {
+    let items = clone(state.settings.checklist || []);
+    let currency = state.settings.currency || "€";
+    const draw = () => {
+      const dlg = openDialog(`
+        <div class="dlg-head">
+          <div><div class="eyebrow">Einstellungen</div><h3>Meine Trade-Checkliste</h3></div>
+          <button class="icon-btn" data-act="close" type="button" aria-label="Schließen">✕</button>
+        </div>
+        <div class="dlg-body">
+          <p class="hint" style="margin:0">Diese Punkte werden bei jedem neuen Trade abgefragt. Änderungen wirken nur auf neue Trades – bereits gespeicherte behalten ihre damalige Checkliste.</p>
+          <div class="edit-list">
+            ${items.map((it, i) => `<div class="edit-item">
+              <input id="ci_${it.id}" data-i="${i}" value="${esc(it.text)}" aria-label="Punkt ${i + 1}">
+              <button class="icon-btn" type="button" data-act="up" data-i="${i}" aria-label="Nach oben" ${i === 0 ? "disabled" : ""}>↑</button>
+              <button class="icon-btn" type="button" data-act="down" data-i="${i}" aria-label="Nach unten" ${i === items.length - 1 ? "disabled" : ""}>↓</button>
+              <button class="icon-btn" type="button" data-act="rm" data-i="${i}" aria-label="Entfernen">✕</button>
+            </div>`).join("") || `<p class="hint" style="margin:0">Keine Punkte – neue Trades werden dann ohne Abfrage eingetragen.</p>`}
+          </div>
+          <form class="edit-item" id="addItemForm">
+            <input id="newItem" placeholder="Neuer Punkt, z. B. „Einstieg nur an Key-Level“" autocomplete="off">
+            <button class="btn" type="submit">Hinzufügen</button>
+          </form>
+          <label class="f" for="f_cur" style="max-width:200px">Währung
+            <select id="f_cur">${["€", "$", "£", "CHF", "Pkt."].map(c => `<option ${c === currency ? "selected" : ""}>${c}</option>`).join("")}</select></label>
+        </div>
+        <div class="dlg-foot">
+          <button class="btn ghost" data-act="reset" type="button">Standardliste</button>
+          <div style="display:flex;gap:8px"><button class="btn ghost" data-act="close" type="button">Abbrechen</button>
+          <button class="btn primary" data-act="save" type="button">Speichern</button></div>
+        </div>`);
+      const sync = () => dlg.querySelectorAll(".edit-list input[data-i]").forEach(inp => items[+inp.dataset.i].text = inp.value);
+      dlg.addEventListener("change", e => { if (e.target.id === "f_cur") currency = e.target.value; });
+      $("#addItemForm").addEventListener("submit", e => {
+        e.preventDefault(); sync();
+        const txt = $("#newItem").value.trim(); if (!txt) return;
+        items.push({ id: uid(), text: txt }); draw(); setTimeout(() => $("#newItem").focus(), 0);
+      });
+      dlg.addEventListener("click", e => {
+        const b = e.target.closest("[data-act]"); if (!b) return;
+        const i = +b.dataset.i; sync();
+        switch (b.dataset.act) {
+          case "close": closeDialog(); break;
+          case "up": [items[i - 1], items[i]] = [items[i], items[i - 1]]; draw(); break;
+          case "down": [items[i + 1], items[i]] = [items[i], items[i + 1]]; draw(); break;
+          case "rm": items.splice(i, 1); draw(); break;
+          case "reset": items = DEFAULT_CHECKLIST.map(x => ({ ...x, id: uid() })); draw(); break;
+          case "save":
+            state.settings.checklist = items.map(x => ({ ...x, text: x.text.trim() })).filter(x => x.text);
+            state.settings.currency = currency;
+            Store.putSettings(); closeDialog(); toast("Checkliste gespeichert"); break;
+        }
+      });
+    };
+    draw();
+  }
+
+  // ---------- Ereignisse ----------
+  $("#calBody").addEventListener("click", e => { const d = e.target.closest(".day"); if (d) showDay(d.dataset.date); });
+  $("#prevMonth").onclick = () => { state.view = new Date(state.view.getFullYear(), state.view.getMonth() - 1, 1); render(); };
+  $("#nextMonth").onclick = () => { state.view = new Date(state.view.getFullYear(), state.view.getMonth() + 1, 1); render(); };
+  $("#todayBtn").onclick = () => { const n = new Date(); state.view = new Date(n.getFullYear(), n.getMonth(), 1); render(); };
+  $("#btnNewTrade").onclick = () => startNewTrade(ymd(new Date()));
+  $("#btnChecklist").onclick = showChecklistEditor;
+
+  Store.loadLocal();
+  render();
+  Store.connect();
+})();
+</script>
+</body>
+</html>
